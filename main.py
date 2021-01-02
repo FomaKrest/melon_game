@@ -1,7 +1,8 @@
+import math
 import sys
 import pygame
 import random
-from Animate import Animation, load_image
+from Animate import Animation, load_image, resize, mirror
 
 
 pygame.init()
@@ -104,10 +105,6 @@ def start_screen():
         clock.tick(FPS)
 
 
-def resize(image, coefficient):
-    return pygame.transform.scale(image, (image.get_width() * coefficient, image.get_height() * coefficient))
-
-
 tile_images = {
     'dirt': resize(load_image('tiles/dirt_tile.png'), 2),
     'empty': load_image('sky.png'),
@@ -131,48 +128,37 @@ sekira_hit_right_anim = []
 for i in range(1, 6):
     sekira_hit_right_anim.append(f'sekira/hit_right/{i}.png')
 
-sekira_hit_left_anim = []
-for i in range(1, 6):
-    sekira_hit_left_anim.append(f'sekira/hit_left/{i}.png')
-
 melon_right_anim = []
 for i in range(1, 13):
     melon_right_anim.append(f'melon/run_right/{i}.png')
-
-melon_left_anim = []
-for i in range(1, 13):
-    melon_left_anim.append(f'melon/run_left/{i}.png')
 
 sekira_melon_run_right_anim = []
 for i in range(1, 13):
     sekira_melon_run_right_anim.append(f'sekira/run_right/{i}.png')
 
-sekira_melon_run_left_anim = []
-for i in range(1, 13):
-    sekira_melon_run_left_anim.append(f'sekira/run_left/{i}.png')
-
 sekira_melon_hit_right_anim = []
 for i in range(1, 13):
     sekira_melon_hit_right_anim.append(f'sekira/hit_right/{i}.png')
-
-sekira_melon_hit_left_anim = []
-for i in range(1, 13):
-    sekira_melon_hit_left_anim.append(f'sekira/hit_left/{i}.png')
 
 melon_shoot_anim = []
 for i in range(1, 7):
     melon_shoot_anim.append(f'melon/shoot/{i}.png')
 
 open_chest_anim = []
-for i in range(1, 3):
+for i in range(1, 4):
     open_chest_anim.append(f'chest/{i}.png')
 
+take_button = resize(load_image('buttons/take.png', -1), 2)
+take_button_hower = resize(load_image('buttons/take_hower.png', -1), 2)
+equip_button = resize(load_image('buttons/equip.png', -1), 2)
+equip_button_hower = resize(load_image('buttons/equip_hower.png', -1), 2)
 open_button = resize(load_image('buttons/open.png', -1), 2)
 open_button_hower = resize(load_image('buttons/open_hower.png', -1), 2)
-opened_chest = resize(load_image('chest/2.png', -1), 2)
+full_chest = resize(load_image('chest/3.png', -1), 2)
+empty_chest = resize(load_image('chest/2.png', -1), 2)
 chest_image = resize(load_image('chest/closed.png', -1), 2)
 sekira_melon_right = resize(load_image('sekira/melon_right.png', -1), 2)
-sekira_melon_left = resize(load_image('sekira/melon_left.png', -1), 2)
+sekira_melon_left = mirror(sekira_melon_right)
 sekira_image = resize(load_image('sekira/sekira.png', -1), 2)
 flower_image = load_image('flower.png', -1)
 dead_flower_image = load_image('dead_flower.png', -1)
@@ -193,6 +179,8 @@ stick_image = pygame.transform.scale(
     stick_image, (stick_image.get_width() // s,
                stick_image.get_height() // s))
 
+take_item_sound = pygame.mixer.Sound('data/sounds/take_item.mp3')
+take_item_sound.set_volume(0.2)
 melon_shoot_sound = pygame.mixer.Sound('data/sounds/melon_shoot.mp3')
 melon_shoot_sound.set_volume(0.2)
 flower_died_sound = pygame.mixer.Sound('data/sounds/flower_died.mp3')
@@ -301,31 +289,55 @@ class Chest(pygame.sprite.Sprite):
         self.image = chest_image
         self.opened = False
         self.button = None
+        self.empty = False
+        self.opening = False
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y + 5)
-        self.openAnim = Animation(open_chest_anim, 0.5, -1, False, 2)
+        self.openAnim = Animation(open_chest_anim, 0.5, -1, False, False, 2)
 
     def update(self):
-        if pygame.sprite.collide_rect(self, player):
-            if not self.opened and not self.button:
-                self.button = Button(self.rect.x, self.rect.y - 20, open_button)
-            #self.opened = True
-        elif self.button:
-            self.button.kill()
-            self.button = None
-
-        if self.button:
-            if self.button.hower:
-                self.button.image = open_button_hower
-                if self.button.pressed:
-                    self.button.kill()
-                    self.opened = True
-            else:
-                self.button.image = open_button
-        if self.opened:
+        if self.opening:
             self.image = self.openAnim.get_frame()
             if not self.image:
-                self.image = opened_chest
-                self.update = lambda: None
+                self.image = full_chest
+                self.opening = False
+        if not self.opened:
+            if pygame.sprite.collide_rect(self, player):
+                if not self.opened and not self.button:
+                    self.button = Button(self.rect.x, self.rect.y - 20, open_button)
+            elif self.button:
+                self.button.kill()
+                self.button = None
+
+            if self.button and not self.opened:
+                if self.button.hower:
+                    self.button.image = open_button_hower
+                    if self.button.pressed:
+                        open_chest_sound.play()
+                        self.button.kill()
+                        self.button = None
+                        self.opened = True
+                        self.opening = True
+                else:
+                    self.button.image = open_button
+        else:
+            if pygame.sprite.collide_rect(self, player):
+                if not self.button:
+                    self.button = Button(self.rect.x, self.rect.y - 20, take_button)
+            elif self.button:
+                self.button.kill()
+                self.button = None
+
+            if self.button:
+                if self.button.hower:
+                    self.button.image = take_button_hower
+                    if self.button.pressed:
+                        take_item_sound.play()
+                        self.button.kill()
+                        self.image = empty_chest
+                        self.empty = True
+                        self.update = lambda: None
+                else:
+                    self.button.image = take_button
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -378,12 +390,12 @@ class Enemy(pygame.sprite.Sprite):
         if self.left:
             self.xvel = -self.speed  # Лево = x- n
             if self.side == 'right':
-                self.image = pygame.transform.flip(self.image, True, False)
+                self.image = mirror(self.image)
                 self.side = 'left'
         if self.right:
             self.xvel = self.speed  # Право = x + n
             if self.side == 'left':
-                self.image = pygame.transform.flip(self.image, True, False)
+                self.image = mirror(self.image)
                 self.side = 'right'
 
         if not (self.left or self.right):  # стоим, когда нет указаний идти
@@ -561,10 +573,10 @@ class Player(pygame.sprite.Sprite):
         self.onGround = True
         self.image = player_image
 
-        self.boltAnimRight = Animation(melon_right_anim, 0.2, -1, True, 2)
-        self.boltAnimLeft = Animation(melon_left_anim, 0.2, -1, True, 2)
-        self.sekiraAnimHitRight = Animation(sekira_hit_right_anim, 0.5, -1, False, 2)
-        self.sekiraAnimHitLeft = Animation(sekira_hit_left_anim, 0.5, -1, False, 2)
+        self.boltAnimRight = Animation(melon_right_anim, 0.2, -1, True, False, 2)
+        self.boltAnimLeft = Animation(melon_right_anim, 0.2, -1, True, True, 2)
+        self.sekiraAnimHitRight = Animation(sekira_hit_right_anim, 0.5, -1, False, False, 2)
+        self.sekiraAnimHitLeft = Animation(sekira_hit_right_anim, 0.5, -1, False, True, 2)
 
         #self.stick = Stick(pos_x, pos_y - tile_height)
         self.hp_bar = HpBar(pos_x, pos_y, self.hp)
@@ -668,27 +680,53 @@ class Sekira(pygame.sprite.Sprite):
         super().__init__(structures_group, all_sprites)
         self.taked = False
         self.hit_side = None
+        self.button = None
+        self.amplitude = 8
+        self.freq = 0.002
+        self.start_ticks = pygame.time.get_ticks()
+        self.offset = 0
         self.image = sekira_image
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
 
     def update(self):
         if not self.taked:
+            # harmonic motion
+            time = (pygame.time.get_ticks() - self.start_ticks)
+            offset = self.amplitude * math.sin(time * self.freq) // 1
+            self.rect.y += self.offset
+            self.offset = offset
+            self.rect.y -= offset
+
             self.player_collision()
         else:
             player.weapon_name = 'sekira'
-            self.kill()
-
-    def player_collision(self):
-        if pygame.sprite.collide_rect(self, player):
-            self.taked = True
-            player.boltAnimRight = Animation(sekira_melon_run_right_anim, 0.2, -1, True, 2)
-            player.boltAnimLeft = Animation(sekira_melon_run_left_anim, 0.2, -1, True, 2)
+            player.boltAnimRight = Animation(sekira_melon_run_right_anim, 0.2, -1, True, False, 2)
+            player.boltAnimLeft = Animation(sekira_melon_run_right_anim, 0.2, -1, True, True, 2)
             if player.side == 'right':
                 player.image = sekira_melon_right
             else:
                 player.image = sekira_melon_left
             player.rect.height = player.image.get_height()
             player.rect.width = player.image.get_width()
+            self.kill()
+
+    def player_collision(self):
+        if pygame.sprite.collide_rect(self, player):
+            if not self.taked and not self.button:
+                self.button = Button(self.rect.x - 10, self.rect.y - 20, equip_button)
+        elif self.button:
+            self.button.kill()
+            self.button = None
+
+        if self.button and not self.taked:
+            if self.button.hower:
+                self.button.image = equip_button_hower
+                if self.button.pressed:
+                    take_item_sound.play()
+                    self.button.kill()
+                    self.taked = True
+            else:
+                self.button.image = equip_button
 
 
 class HpBar:

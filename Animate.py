@@ -6,6 +6,10 @@ def resize(image, coefficient):
     return pygame.transform.scale(image, (image.get_width() * coefficient, image.get_height() * coefficient))
 
 
+def mirror(image):
+    return pygame.transform.flip(image, True, False)
+
+
 def load_image(name, color_key=None):
     fullname = os.path.join('data', name)
     try:
@@ -24,8 +28,11 @@ def load_image(name, color_key=None):
 
 
 class Animation:
-    def __init__(self, images, delay, color_key=None, cycle=True, size=0):
+    def __init__(self, images, delay, color_key=None, cycle=True, is_mirror=False, size=0):
         self.images = [load_image(i, color_key) for i in images]
+        if is_mirror:
+            for i in range(len(self.images)):
+                self.images[i] = mirror(self.images[i])
         if size:
             for i in range(len(self.images)):
                 self.images[i] = resize(self.images[i], size)
