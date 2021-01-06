@@ -32,6 +32,8 @@ particle_group = pygame.sprite.Group()
 hearts_group = pygame.sprite.Group()
 structures_group = pygame.sprite.Group()
 buttons_group = pygame.sprite.Group()
+boss_group = pygame.sprite.Group()
+weapons_group = pygame.sprite.Group()
 
 
 def draw_text(text, size, x, y):
@@ -44,14 +46,14 @@ def draw_text(text, size, x, y):
 
 def load_level(filename):
     filename = "data/" + filename
-    with open(filename, 'r') as mapFile:
+    with open(filename, 'r', encoding='utf-8') as mapFile:
         level_map = [line.strip() for line in mapFile]
 
     max_width = max(map(len, level_map))
 
     return list(map(lambda x: x.ljust(max_width, '.'), level_map))
 
-
+boss_parts = []
 def generate_level(level):
     global flower
     new_player, x, y, enemies = None, None, None, []
@@ -61,9 +63,12 @@ def generate_level(level):
                 Tile('empty', 'empty', x, y)
             elif level[y][x] == '#':
                 Tile('empty', 'dirt', x, y)
-            elif level[y][x] in ['d', 'l', 'r', 'u', 'D', 'L', 'R', 'U', '<', '>', '^', 'v', '=', 'N']:
+            elif level[y][x] in 'dlruDLRU<>^v=N':
                 Tile('empty', 'empty', x, y)
                 Tile('barrier', level[y][x], x, y)
+            elif level[y][x] in 'кКлЛсСбБнНпПгГтh':
+                Tile('empty', 'empty', x, y)
+                boss_parts.append((x, y, level[y][x]))
             elif level[y][x] == '@':
                 Tile('empty', 'empty', x, y)
                 new_player = Player(x, y)
@@ -74,7 +79,7 @@ def generate_level(level):
                 Tile('empty', level[y][x], x, y)
             elif level[y][x] == 's':
                 Tile('empty', 'empty', x, y)
-                Sekira(x, y)
+                Weapon(x, y, 'scrap')
             elif level[y][x] == 'f':
                 Tile('empty', 'empty', x, y)
                 Flower(x, y)
@@ -126,7 +131,7 @@ s = 15
 
 sekira_hit_right_anim = []
 for i in range(1, 6):
-    sekira_hit_right_anim.append(f'sekira/hit_right/{i}.png')
+    sekira_hit_right_anim.append(f'weapon/hit_right/{i}.png')
 
 melon_right_anim = []
 for i in range(1, 13):
@@ -134,11 +139,11 @@ for i in range(1, 13):
 
 sekira_melon_run_right_anim = []
 for i in range(1, 13):
-    sekira_melon_run_right_anim.append(f'sekira/run_right/{i}.png')
+    sekira_melon_run_right_anim.append(f'weapon/run_right/{i}.png')
 
 sekira_melon_hit_right_anim = []
 for i in range(1, 13):
-    sekira_melon_hit_right_anim.append(f'sekira/hit_right/{i}.png')
+    sekira_melon_hit_right_anim.append(f'weapon/hit_right/{i}.png')
 
 melon_shoot_anim = []
 for i in range(1, 7):
@@ -148,6 +153,19 @@ open_chest_anim = []
 for i in range(1, 4):
     open_chest_anim.append(f'chest/{i}.png')
 
+krenk_anim = []
+for i in range(1, 4):
+    krenk_anim.append(f'enemy/krenk{i}.png')
+
+scrap_hit_anim = []
+for i in range(1, 4):
+    scrap_hit_anim.append(f'weapon/scrap_hit/{i}.png')
+
+scrap_image = resize(load_image('weapon/scrap.png', -1), 2)
+leg_image = resize(load_image('enemy/leg.png', -1), 2)
+box_image = resize(load_image('enemy/box.png', -1), 2)
+iron_box_image = resize(load_image('enemy/iron_box.png', -1), 2)
+krenk_image = resize(load_image('enemy/krenk1.png', -1), 2)
 take_button = resize(load_image('buttons/take.png', -1), 2)
 take_button_hower = resize(load_image('buttons/take_hower.png', -1), 2)
 equip_button = resize(load_image('buttons/equip.png', -1), 2)
@@ -157,9 +175,9 @@ open_button_hower = resize(load_image('buttons/open_hower.png', -1), 2)
 full_chest = resize(load_image('chest/3.png', -1), 2)
 empty_chest = resize(load_image('chest/2.png', -1), 2)
 chest_image = resize(load_image('chest/closed.png', -1), 2)
-sekira_melon_right = resize(load_image('sekira/melon_right.png', -1), 2)
+sekira_melon_right = resize(load_image('weapon/melon_right.png', -1), 2)
 sekira_melon_left = mirror(sekira_melon_right)
-sekira_image = resize(load_image('sekira/sekira.png', -1), 2)
+sekira_image = resize(load_image('weapon/sekira.png', -1), 2)
 flower_image = load_image('flower.png', -1)
 dead_flower_image = load_image('dead_flower.png', -1)
 player_image = resize(load_image('melon/run_right/1.png', -1), 2)
@@ -171,21 +189,29 @@ bullet_image = load_image('bullet.png', -1)
 bullet_image = pygame.transform.scale(
     bullet_image, (bullet_image.get_width() // 30,
                bullet_image.get_height() // 30))
-enemy_image = resize(load_image('box.png', -1), 2)
-enemy1_image = resize(load_image('1box.png', -1), 2)
-enemy2_image = resize(load_image('2box.png', -1), 2)
+enemy_image = resize(load_image('enemy/head.png', -1), 2)
+enemy1_image = resize(load_image('enemy/1head.png', -1), 2)
+enemy2_image = resize(load_image('enemy/2head.png', -1), 2)
 stick_image = load_image('stick.png', -1)
 stick_image = pygame.transform.scale(
     stick_image, (stick_image.get_width() // s,
                stick_image.get_height() // s))
 
+boss_end_sound = pygame.mixer.Sound('data/sounds/boss/end.mp3')
+boss_end_sound.set_volume(0.2)
+boss_going_sound = pygame.mixer.Sound('data/sounds/boss/going.mp3')
+boss_going_sound.set_volume(0.2)
+boss_start_sound = pygame.mixer.Sound('data/sounds/boss/start.mp3')
+boss_start_sound.set_volume(0.2)
+boss_step_sound = pygame.mixer.Sound('data/sounds/boss/step.mp3')
+boss_step_sound.set_volume(0.2)
 take_item_sound = pygame.mixer.Sound('data/sounds/take_item.mp3')
 take_item_sound.set_volume(0.2)
 melon_shoot_sound = pygame.mixer.Sound('data/sounds/melon_shoot.mp3')
 melon_shoot_sound.set_volume(0.2)
 flower_died_sound = pygame.mixer.Sound('data/sounds/flower_died.mp3')
-sekira_hit_sound = pygame.mixer.Sound('data/sounds/sekira_hit.mp3')
-sekira_hit_sound.set_volume(0.2)
+hit_sound = pygame.mixer.Sound('data/sounds/hit.mp3')
+hit_sound.set_volume(0.2)
 box_died_sound = pygame.mixer.Sound('data/sounds/box_died.mp3')
 box_died_sound.set_volume(0.2)
 open_chest_sound = pygame.mixer.Sound('data/sounds/open_chest.mp3')
@@ -283,6 +309,277 @@ class Particle(pygame.sprite.Sprite):
             self.kill()
 
 
+boss_parts_dependencies = {'к': ('л', 'tc', 'bc', (-4, 0)), 'л': ('б', 'tc', 'bc', (-4, 0)),
+                           'б': ('п', 'tc', 'bc', (-4, 0)), 'п': ('г', 'cr', 'cl', (0, 0)),
+                           'К': ('Л', 'tc', 'bc', (4, 0)), 'Л': ('Б', 'tc', 'bc', (4, 0)),
+                           'Б': ('П', 'tc', 'bc', (4, 0)), 'П': ('Г', 'cl', 'cr', (0, 0)),
+                           'Г': ('т', 'bc', 'tr', (0, 0)), 'н': ('с', 'bc', 'tc', (-1, 0)),
+                           'г': ('т', 'bc', 'tl', (0, 0)), 'Н': ('С', 'bc', 'tc', (1, 0)),
+                           'т': ('Н', 'bc', 'tl', (0, 0)), 'h': ('г', 'bc', 'tr', (0, 0))}
+reversed_tree = {'л': 'к', 'б': 'л', 'п': 'б', 'г': 'п', 'Л': 'К', 'Б': 'Л',
+                 'П': 'Б', 'Г': 'П', 'т': 'гГ', 'с': 'н', 'С': 'Н', 'Н': 'т'}
+
+
+class Boss:
+    def __init__(self, parts):
+        self.speed = 2
+        self.legs_speed = 1
+        self.current_leg = 'н'
+        self.triggered = False
+        self.grouped = False
+        self.current_leg_move_distance = 0
+        self.side = 'right'
+        for i in parts:
+            if i[2] == 'т':
+                self.head = BossPart(i[0], i[1], i[2])
+            elif i[2] == 'н':
+                self.left_leg = BossPart(i[0], i[1], i[2])
+            elif i[2] == 'Н':
+                self.right_leg = BossPart(i[0], i[1], i[2])
+            else:
+                BossPart(i[0], i[1], i[2])
+
+    def trigger(self):
+        self.triggered = True
+        boss_start_sound.play()
+        boss_going_sound.play(-1)
+
+    def update(self):
+        for i in boss_group:
+            i.update()
+        if self.triggered and self.grouped:
+            self.follow_player()
+        if all([i.grouped for i in boss_group if i.type not in 'нН']):
+            self.grouped = True
+        else:
+            self.grouped = False
+
+    def legs_move(self):
+        self.current_leg_move_distance += self.legs_speed
+        if self.current_leg == 'Н':
+            if self.current_leg_move_distance < 0:
+                boss_step_sound.play()
+                self.right_leg.rect.y += self.current_leg_move_distance
+                self.current_leg_move_distance = 0
+                self.current_leg = 'н'
+                self.legs_speed = 1
+            elif self.current_leg_move_distance >= 15:
+                self.legs_speed = -3
+            self.right_leg.rect.y -= self.legs_speed
+        elif self.current_leg == 'н':
+            if self.current_leg_move_distance < 0:
+                boss_step_sound.play()
+                self.left_leg.rect.y += self.current_leg_move_distance
+                self.current_leg_move_distance = 0
+                self.current_leg = 'Н'
+                self.legs_speed = 1
+            elif self.current_leg_move_distance >= 15:
+                self.legs_speed = -3
+            self.left_leg.rect.y -= self.legs_speed
+
+    def follow_player(self):
+        if player.rect.x > self.head.rect.x:
+            self.head.image = self.head.animation_left.get_frame()
+        elif player.rect.x < self.head.rect.x:
+            self.head.image = self.head.animation_right.get_frame()
+
+        if player.rect.x - 200 > self.head.rect.x:
+            self.side = 'right'
+            self.legs_move()
+        elif player.rect.x + 200 < self.head.rect.x:
+            self.legs_move()
+            self.side = 'left'
+        else:
+            self.side = None
+
+        if self.side == 'right':
+            for i in boss_group:
+                i.rect.x += self.speed
+        elif self.side == 'left':
+            for i in boss_group:
+                i.rect.x -= self.speed
+
+
+class BossPart(pygame.sprite.Sprite):
+    def __init__(self, x, y, part_type):
+        super().__init__(all_sprites, boss_group)
+        self.type = part_type
+        self.parent_part = None
+        self.side = 'right'
+        self.grouped = False
+        self.points = None
+        self.hp = 3
+        self.jump_power = 5
+        self.xvel = 0  # скорость перемещения. 0 - стоять на месте
+        self.yvel = 0
+        self.left, self.right, self.up = False, False, False
+        self.onGround = False
+        self.speed = 1
+        if self.type == 'т':
+            self.animation_right = Animation(krenk_anim, 1, -1, True, False, 2)
+            self.animation_left = Animation(krenk_anim, 1, -1, True, True, 2)
+        if self.type in 'нН':
+            self.image = leg_image
+        elif self.type == 'т':
+            self.image = iron_box_image
+        else:
+            self.image = box_image
+        self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
+
+    def update(self):
+        if self.hp <= 0:
+            box_died_sound.play()
+            for _ in range(20):
+                Particle((self.rect.x, self.rect.y), random.choice(range(-5, 6)), random.choice(range(-6, -1)))
+            boss.grouped = False
+            childs = ''
+            current_child = self.type
+            try:
+                first_child = reversed_tree[current_child]
+                while True:
+                    current_child = reversed_tree[current_child]
+                    childs += current_child
+            except KeyError:
+                for i in boss_group:
+                    if self.type in 'Гг' and i.type == 'h':
+                        i.kill()
+                        continue
+                    if i.type in childs:
+                        try:
+                            i.type = boss_parts_dependencies[i.type][0]
+                            i.points = boss_parts_dependencies[i.type]
+                        except KeyError:
+                            i.points = None
+                        if i.type == boss_parts_dependencies[first_child[0]][0]:
+                            try:
+                                i.find_parent(boss_parts_dependencies[i.type][0])
+                            except KeyError:
+                                pass
+            for i in boss_group:
+                i.grouping()
+            self.kill()
+        elif self.hp <= 1:
+            self.image = enemy2_image
+        elif self.hp <= 2:
+            self.image = enemy1_image
+
+        if boss.triggered:
+            self.grouping()
+
+    def define_points(self, obj, is_self=True):
+        x, y = None, None
+        if is_self:
+            n = 1
+        else:
+            n = 2
+        if self.points[n][0] == 'c':
+            y = obj.rect.centery
+        elif self.points[n][0] == 'b':
+            y = obj.rect.bottom
+        elif self.points[n][0] == 't':
+            y = obj.rect.top
+        if self.points[n][1] == 'c':
+            x = obj.rect.centerx
+        elif self.points[n][1] == 'l':
+            x = obj.rect.left
+        elif self.points[n][1] == 'r':
+            x = obj.rect.right
+        if is_self:
+            return x - self.points[3][0], y - self.points[3][1]
+        return x, y
+
+    def find_parent(self, type):
+        for i in boss_group:
+            if i.type == type:
+                if i != self:
+                    self.parent_part = i
+                    return i
+        else:
+            self.find_parent(boss_parts_dependencies[type][0])
+
+    def grouping(self):
+        if self.points and not boss.grouped:
+            self_x, self_y = self.define_points(self)
+            parent_x, parent_y = self.define_points(self.parent_part, False)
+
+            if parent_x < self_x:
+                self.left = True
+                self.side = 'left'
+            elif parent_x > self_x:
+                self.right = True
+                self.side = 'right'
+            elif parent_y < self_y:
+                self.up = True
+
+            if parent_y + 2 >= self_y >= parent_y - 2:
+                self.yvel = 0
+                self.onGround = True
+            elif self.up:
+                self.yvel = -self.jump_power
+            if parent_x + 2 >= self_x >= parent_x - 2:
+                self.xvel = 0
+
+            if self.left:
+                self.xvel = -self.speed  # Лево = x- n
+                if self.side == 'right':
+                    self.image = mirror(self.image)
+                    self.side = 'left'
+            if self.right:
+                self.xvel = self.speed  # Право = x + n
+                if self.side == 'left':
+                    self.image = mirror(self.image)
+                    self.side = 'right'
+
+            self.left, self.right, self.up = False, False, False
+
+            if not self.onGround and self.type not in 'нН':
+                self.yvel += GRAVITY
+
+            self.onGround = False  # Мы не знаем, когда мы на земле((
+            self.rect.y += self.yvel
+
+            if self.type == 'h':
+                for p in boss_group:
+                    if p != self:
+                        self.collide(0, self.yvel, p)
+        for b in bullets_group:
+            if pygame.sprite.collide_rect(self, b):
+                boss.grouped = False
+                b.create_particles((b.rect.x, b.rect.y), b.side)
+                b.kill()
+                if self.type not in 'нНт':
+                    self.hp -= 1
+
+        for p in barriers_group:
+            self.collide(0, self.yvel, p)
+
+        self.rect.x += self.xvel  # переносим свои положение на xvel
+
+        if self.xvel == self.yvel == 0:
+            self.grouped = True
+        else:
+            self.grouped = False
+
+    def collide(self, xvel, yvel, p):
+        if pygame.sprite.collide_rect(self, p):
+            if xvel > 0:  # если движется вправо
+                self.up = True
+                self.rect.right = p.rect.left  # то не движется вправо
+
+            if xvel < 0:  # если движется влево
+                self.up = True
+                self.rect.left = p.rect.right  # то не движется влево
+
+            if yvel > 0:  # если падает вниз
+                self.rect.bottom = p.rect.top  # то не падает вниз
+                self.onGround = True  # и становится на что-то твердое
+                self.yvel = 0  # и энергия падения пропадает
+
+            if yvel < 0:  # если движется вверх
+                self.rect.top = p.rect.bottom  # то не движется вверх
+                self.yvel = 0
+
+
 class Chest(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(all_sprites, structures_group)
@@ -330,12 +627,12 @@ class Chest(pygame.sprite.Sprite):
             if self.button:
                 if self.button.hower:
                     self.button.image = take_button_hower
-                    if self.button.pressed:
-                        take_item_sound.play()
-                        self.button.kill()
-                        self.image = empty_chest
-                        self.empty = True
-                        self.update = lambda: None
+                if self.button.pressed:
+                    take_item_sound.play()
+                    self.button.kill()
+                    self.image = empty_chest
+                    self.empty = True
+                    self.update = lambda: None
                 else:
                     self.button.image = take_button
 
@@ -520,44 +817,6 @@ class Flower(pygame.sprite.Sprite):
                 self.update = lambda: None
 
 
-class Stick(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y):
-        super().__init__(player_group, all_sprites)
-        self.x = pos_x
-        self.y = pos_y
-        self.original_image = self.image = stick_image
-        self.move(pos_x, pos_y)
-        self.rot = 90
-        self.rot_speed = 10
-        self.last_angle = 0
-        self.last_update = pygame.time.get_ticks()
-        self.center_image = (54, 250)
-
-    def move(self, x, y):
-        self.x = x
-        self.y = y
-        self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
-
-    def update(self, x, y, side):
-        self.rect.x = x
-        self.rect.y = y
-
-    def rotate(self, side, pivot):
-        if side == 'right':
-            self.rot_speed = -10
-        else:
-            self.rot_speed = 10
-        now = pygame.time.get_ticks()
-        if now - self.last_update > 50:
-            self.last_update = now
-            self.rot = self.rot + self.rot_speed
-            self.image = pygame.transform.rotate(self.original_image, self.rot - 90)
-            self.rect = self.image.get_rect()
-            self.rect.center = pivot
-            self.x = self.rect.x
-            self.y = self.rect.y
-
-
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y):
         super().__init__(player_group, all_sprites)
@@ -565,6 +824,8 @@ class Player(pygame.sprite.Sprite):
         self.side_hit = None
         self.x = pos_x
         self.y = pos_y
+        self.inventory = [('seeds', None)]
+        self.current_weapon_num = 0
         self.hp = 10
         self.xvel = 0  # скорость перемещения. 0 - стоять на месте
         self.yvel = 0
@@ -578,7 +839,6 @@ class Player(pygame.sprite.Sprite):
         self.sekiraAnimHitRight = Animation(sekira_hit_right_anim, 0.5, -1, False, False, 2)
         self.sekiraAnimHitLeft = Animation(sekira_hit_right_anim, 0.5, -1, False, True, 2)
 
-        #self.stick = Stick(pos_x, pos_y - tile_height)
         self.hp_bar = HpBar(pos_x, pos_y, self.hp)
         self.start_ticks_shoot = pygame.time.get_ticks()
         self.start_ticks_step = pygame.time.get_ticks()
@@ -596,38 +856,45 @@ class Player(pygame.sprite.Sprite):
                 melon_shoot_sound.play()
                 self.start_ticks_shoot = pygame.time.get_ticks()
                 Bullet(self.rect.centerx, self.rect.top, self.side, 'player')
-        elif self.weapon_name == 'sekira':
+        elif self.weapon_name == 'scrap':
             seconds = (pygame.time.get_ticks() - self.start_ticks_shoot) / 200
-            if seconds > 3:
-                sekira_hit_sound.play()
-                self.side_hit = self.side
+            if seconds > 2:
+                self.weapon.hit()
                 self.start_ticks_shoot = pygame.time.get_ticks()
 
     def update(self, left, right, up):
+        if self.weapon:
+            self.weapon.side = self.side
         if up:
             if self.onGround:  # прыгаем, только когда можем оттолкнуться от земли
                 self.yvel = -JUMP_POWER
         if left:
             self.image = self.boltAnimLeft.get_frame()
+            if self.boltAnimLeft.current_frame == len(melon_right_anim) - 2:
+                if self.yvel in [0.75, 0.35, 0]:
+                    seconds = (pygame.time.get_ticks() - self.start_ticks_step) / 200
+                    if seconds >= 1:
+                        random.choice(steps).play()
+                        self.start_ticks_step = pygame.time.get_ticks()
             self.xvel = -MOVE_SPEED  # Лево = x - n
             self.side = 'left'
         elif right:
             self.image = self.boltAnimRight.get_frame()
+            if self.boltAnimRight.current_frame == len(melon_right_anim) - 2:
+                if self.yvel in [0.75, 0.35, 0]:
+                    seconds = (pygame.time.get_ticks() - self.start_ticks_step) / 200
+                    if seconds >= 1:
+                        random.choice(steps).play()
+                        self.start_ticks_step = pygame.time.get_ticks()
             self.xvel = MOVE_SPEED  # Право = x + n
             self.side = 'right'
         else:
             self.xvel = 0
-            if self.weapon_name == 'sekira':
-                if self.side == 'right':
-                    self.image = sekira_melon_right
-                else:
-                    self.image = sekira_melon_left
-
-        if (left or right) and self.onGround:
-            seconds = (pygame.time.get_ticks() - self.start_ticks_step) / 200
-            if seconds >= 2.5:
-                random.choice(steps).play()
-                self.start_ticks_step = pygame.time.get_ticks()
+            # if self.weapon_name == 'sekira':
+            #     if self.side == 'right':
+            #         self.image = sekira_melon_right
+            #     else:
+            #         self.image = sekira_melon_left
 
         if self.side_hit:
             for e in enemies_group:
@@ -643,9 +910,9 @@ class Player(pygame.sprite.Sprite):
             self.sekiraAnimHitRight.restart()
             self.sekiraAnimHitLeft.restart()
             if self.side == 'right':
-                self.image = sekira_melon_right
+                self.image = player_image
             else:
-                self.image = sekira_melon_left
+                self.image = mirror(player_image)
             self.side_hit = None
 
         if not self.onGround:
@@ -655,9 +922,18 @@ class Player(pygame.sprite.Sprite):
         self.rect.y += self.yvel
         for p in barriers_group:
             self.collide(0, self.yvel, p)
+        for p in boss_group:
+            if self.collide(0, self.yvel, p):
+                if not boss.triggered:
+                    boss.trigger()
         self.rect.x += self.xvel  # переносим свои положение на xvel
         for p in barriers_group:
             self.collide(self.xvel, 0, p)
+        for p in boss_group:
+            if self.collide(self.xvel, 0, p):
+                if not boss.triggered:
+                    boss.trigger()
+
         self.hp_bar.update(self.hp, self.rect.x, self.rect.y)
 
     def collide(self, xvel, yvel, p):
@@ -673,20 +949,31 @@ class Player(pygame.sprite.Sprite):
             elif yvel < 0:  # если движется вверх
                 self.rect.top = p.rect.bottom  # то не движется вверх
                 self.yvel = 0  # и энергия прыжка пропадает
+            return True
+        return False
 
 
-class Sekira(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__(structures_group, all_sprites)
+class Weapon(pygame.sprite.Sprite):
+    def __init__(self, x, y, name):
+        super().__init__(structures_group, weapons_group, all_sprites)
         self.taked = False
-        self.hit_side = None
+        self.side = None
         self.button = None
         self.amplitude = 8
         self.freq = 0.002
         self.start_ticks = pygame.time.get_ticks()
         self.offset = 0
-        self.image = sekira_image
+        self.is_hit = False
+        self.name = name
+        if name == 'scrap':
+            self.image = scrap_image
+            self.hitRightAnim = Animation(scrap_hit_anim, 0.3, -1, False, False, 2)
+            self.hitLeftAnim = Animation(scrap_hit_anim, 0.3, -1, False, True, 2)
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
+
+    def hit(self):
+        hit_sound.play()
+        self.is_hit = True
 
     def update(self):
         if not self.taked:
@@ -699,16 +986,52 @@ class Sekira(pygame.sprite.Sprite):
 
             self.player_collision()
         else:
-            player.weapon_name = 'sekira'
-            player.boltAnimRight = Animation(sekira_melon_run_right_anim, 0.2, -1, True, False, 2)
-            player.boltAnimLeft = Animation(sekira_melon_run_right_anim, 0.2, -1, True, True, 2)
-            if player.side == 'right':
-                player.image = sekira_melon_right
+            if self.name == 'scrap':
+                player.weapon_name = 'scrap'
+                player.weapon = self
+                player.inventory.append(('scrap', self))
+                self.update = self.taked_update
+
+    def taked_update(self):
+        if player.weapon_name != self.name:
+            if self in structures_group:
+                structures_group.remove(self)
+        else:
+            if self not in structures_group:
+                structures_group.add(self)
+        if self.side == 'right':
+            self.rect.x = player.rect.x + 30
+            self.rect.y = player.rect.y
+            self.image = scrap_image
+        else:
+            self.rect.x = player.rect.x - 30
+            self.rect.y = player.rect.y
+            self.image = mirror(scrap_image)
+        if self.is_hit:
+            if self.side == 'right':
+                self.image = self.hitRightAnim.get_frame()
             else:
-                player.image = sekira_melon_left
-            player.rect.height = player.image.get_height()
-            player.rect.width = player.image.get_width()
-            self.kill()
+                self.image = self.hitLeftAnim.get_frame()
+            if not self.image:
+                self.enemy_collision()
+                self.is_hit = False
+                if self.name == 'scrap':
+                    if self.side == 'right':
+                        self.image = scrap_image
+                    else:
+                        self.image = mirror(scrap_image)
+                self.hitLeftAnim.restart()
+                self.hitRightAnim.restart()
+
+    def enemy_collision(self):
+        for e in enemies_group:
+            if pygame.sprite.collide_rect(self, e):
+                e.hp -= 1
+        if boss.triggered:
+            for p in boss_group:
+                if p.type not in 'нНт':
+                    if pygame.sprite.collide_rect(self, p):
+                        p.hp -= 1
 
     def player_collision(self):
         if pygame.sprite.collide_rect(self, player):
@@ -781,18 +1104,18 @@ class Heart(pygame.sprite.Sprite):
 
 
 class Barrier(pygame.sprite.Sprite):
-    def __init__(self, cords1, cords2, max_width):
+    def __init__(self, cords1, cords2):
         super().__init__(barriers_group, all_sprites)
         self.image = pygame.Surface((cords2[0] - cords1[0] + tile_width, tile_height))
-        self.rect = pygame.Rect(cords1[0], cords1[1], cords2[0] - cords1[0] + 50, 50)
+        self.rect = pygame.Rect(cords1[0], cords1[1], cords2[0] - cords1[0] + tile_width, tile_height)
 
 
-def make_barriers(max_width):
+def make_barriers():
     barriers = []
     l = load_level('level1.txt')
     for i in range(len(l)):
         for j in range(len(l[i])):
-            if l[i][j] not in ['.', '#', 'e', '@', 'f', 's', 'c']:
+            if l[i][j] not in '.#e@fscкКлЛсСбБнНпПгГтh':
                 barriers.append((j * tile_width, i * tile_height))
     barriers.sort(key=lambda a: (a[1], a[0]))
 
@@ -810,15 +1133,23 @@ def make_barriers(max_width):
             stack.append(i)
     groups.append(stack)
     for i in groups:
-        Barrier(i[0], i[-1], max_width)
+        Barrier(i[0], i[-1])
 
 
 start_screen()
 level_map = load_level('level1.txt')
 player, level_x, level_y, enemies = generate_level(level_map)
 bullets = []
+boss = Boss(boss_parts)
+for i in boss_group:
+    try:
+        i.points = boss_parts_dependencies[i.type]
+        i.find_parent(boss_parts_dependencies[i.type][0])
+    except KeyError:
+        i.points = None
 
-make_barriers(level_x)
+
+make_barriers()
 camera = Camera()
 left, right, up = 0, 0, 0
 running = True
@@ -843,12 +1174,19 @@ while running:
             elif event.key in [pygame.K_LEFT, pygame.K_a]:
                 left = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            for button in buttons_group:
-                if button.is_pressed(event.pos):
-                    button.pressed = True
-                    break
-            else:
-                player.shoot()
+            if event.button == 1:
+                for button in buttons_group:
+                    if button.is_pressed(event.pos):
+                        button.pressed = True
+                        break
+                else:
+                    player.shoot()
+            elif event.button == 4:
+                player.current_weapon_num = (player.current_weapon_num + 1) % len(player.inventory)
+                player.weapon_name, player.weapon = player.inventory[player.current_weapon_num]
+            elif event.button == 5:
+                player.current_weapon_num = (player.current_weapon_num - 1) % len(player.inventory)
+                player.weapon_name, player.weapon = player.inventory[player.current_weapon_num]
         elif event.type == pygame.MOUSEMOTION:
             for button in buttons_group:
                 if button.is_pressed(event.pos):
@@ -861,19 +1199,22 @@ while running:
     camera.update(player)
     for sprite in all_sprites:
         camera.apply(sprite)
+    boss.update()
+    bullets_group.update()
+    enemies_group.update()
+    particle_group.update()
+    structures_group.update()
+    weapons_group.update()
+
     tiles_group.draw(screen)
     player_group.draw(screen)
     enemies_group.draw(screen)
     bullets_group.draw(screen)
     hearts_group.draw(screen)
     particle_group.draw(screen)
-    structures_group.draw(screen)
     buttons_group.draw(screen)
-
-    bullets_group.update()
-    enemies_group.update()
-    particle_group.update()
-    structures_group.update()
+    boss_group.draw(screen)
+    structures_group.draw(screen)
 
     pygame.display.flip()
 
