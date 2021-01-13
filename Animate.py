@@ -6,7 +6,9 @@ def resize(image, coefficient):
     return pygame.transform.scale(image, (image.get_width() * coefficient, image.get_height() * coefficient))
 
 
-def mirror(image):
+def mirror(image, vertical=False):
+    if vertical:
+        return pygame.transform.flip(image, False, True)
     return pygame.transform.flip(image, True, False)
 
 
