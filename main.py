@@ -78,7 +78,7 @@ def generate_level(level):
                 Tile('empty', 'empty', x, y)
                 new_player = Player(x, y)
             elif level[y][x] == 'e':
-                Enemy(x, y)
+                Enemy(tile_width * x, tile_height * y)
                 Tile('empty', 'empty', x, y)
             elif level[y][x].isdigit():
                 Tile('empty', level[y][x], x, y)
@@ -142,6 +142,8 @@ scrap_hit_anim = [f'weapon/scrap_hit/{i}.png' for i in range(1, 4)]
 bellows_anim = [f'weapon/bellows/{i}.png' for i in range(1, 4)]
 explosion_anim = [f'explosion/{i}.png' for i in range(1, 9)]
 
+speed_effect = resize(load_image('speed_effect.png', -1), 4)
+power_effect = resize(load_image('power_effect.png', -1), 4)
 shop_menu = resize(load_image('shop_menu.png', -1), 6)
 rocket_target_image = resize(load_image('rocket_target.png', -1), 2)
 rocket_image = resize(load_image('rocket.png', -1), 2)
@@ -151,6 +153,10 @@ leg_image = resize(load_image('enemy/leg.png', -1), 2)
 box_image = resize(load_image('enemy/box.png', -1), 2)
 iron_box_image = resize(load_image('enemy/iron_box.png', -1), 2)
 krenk_image = resize(load_image('enemy/krenk1.png', -1), 2)
+close_button = resize(load_image('buttons/close.png', -1), 8)
+close_button_hover = resize(load_image('buttons/close_hover.png', -1), 8)
+buy_button = resize(load_image('buttons/buy.png', -1), 2)
+buy_button_hover = resize(load_image('buttons/buy_hover.png', -1), 2)
 take_button = resize(load_image('buttons/take.png', -1), 2)
 take_button_hover = resize(load_image('buttons/take_hover.png', -1), 2)
 equip_button = resize(load_image('buttons/equip.png', -1), 2)
@@ -254,7 +260,7 @@ class Button(pygame.sprite.Sprite):
         super().__init__(buttons_group, all_sprites)
         self.image = image
         self.rect = self.image.get_rect().move(x, y)
-        self.hower = False
+        self.hover = False
         self.pressed = False
 
     def is_pressed(self, mouse):
@@ -330,31 +336,85 @@ class Shop(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y + 3)
         self.button = None
         self.opened = False
+        self.resources = {
+            'heal': resize(load_image('items/heal.png', -1), 8),
+            'power': resize(load_image('items/power.png', -1), 8),
+            'speed': resize(load_image('items/speed.png', -1), 8)
+        }
+        self.malachite_image = resize(load_image('items/malachite.png'), 4)
+        self.frame_image = resize(load_image('items/frame.png'), 8)
+        self.hover_frame_image = resize(load_image('items/frame_hover.png'), 8)
+        self.numbers = [load_image(f'numbers/{i}.png') for i in range(10)]
+        self.slots = [[self.resources[i], random.choice([1, 2, 3, 4])] for i in ['heal', 'power', 'speed']]
+        self.buy_buttons = [Button(308, 200, buy_button),
+                            Button(508, 200, buy_button),
+                            Button(708, 200, buy_button)]
+        self.close_button = Button(800, 30, close_button)
+        all_sprites.remove(self.close_button)
+        buttons_group.remove(self.close_button)
+        for i in self.buy_buttons:
+            all_sprites.remove(i)
+            buttons_group.remove(i)
 
     def update(self):
-        if pygame.sprite.collide_rect(self, player):
-            if not self.button:
-                self.button = Button(self.rect.x, self.rect.y - 20, open_button)
-        elif self.button:
-            self.button.kill()
-            self.button = None
-
-        if self.button:
-            if self.button.hower:
-                self.button.image = open_button_hover
-                if self.button.pressed:
-                    self.opened = True
-                    self.button.kill()
-                    self.button = None
-            else:
-                self.button.image = open_button
-
-        if self.opened:
-            print(1)
+        if not player.is_shopping:
+            if self.buy_buttons[0] in buttons_group:
+                for i in self.buy_buttons:
+                    buttons_group.remove(i)
+                buttons_group.remove(self.close_button)
+            if pygame.sprite.collide_rect(self, player):
+                if not self.button:
+                    self.button = Button(self.rect.x, self.rect.y - 20, open_button)
+            elif self.button:
+                self.button.kill()
+                self.button = None
+            if self.button:
+                if self.button.hover:
+                    self.button.image = open_button_hover
+                    if self.button.pressed:
+                        self.opened = True
+                        player.is_shopping = True
+                        player.shop = self
+                        for i in self.buy_buttons:
+                            buttons_group.add(i)
+                        buttons_group.add(self.close_button)
+                        self.button.kill()
+                        self.button = None
+                else:
+                    self.button.image = open_button
+        elif player.shop == self:
             self.menu()
 
     def menu(self):
-         pass
+        screen.blit(shop_menu, (230, 60))
+        x, y = 270, 100
+        step = 200
+        if self.close_button.hover:
+            self.close_button.image = close_button_hover
+            if self.close_button.pressed:
+                player.is_shopping = False
+                self.close_button.pressed = False
+        else:
+            self.close_button.image = close_button
+        for num, b in enumerate(self.buy_buttons):
+            if b.hover:
+                b.image = buy_button_hover
+                if b.pressed:
+                    if inventory.malachite_amount >= self.slots[num][1]:
+                        inventory.malachite_amount -= self.slots[num][1]
+                        name = ['heal', 'power', 'speed'][num]
+                        inventory.add_item(name, 1)
+                        player.weapons[name] = inventory.resources[name]
+                    b.pressed = False
+            else:
+                b.image = buy_button
+        for s in self.slots:
+            screen.blit(self.frame_image, (x, y))
+            screen.blit(s[0], (x, y))
+            for i, num in enumerate(str(s[1])[::-1]):
+                screen.blit(resize(self.numbers[int(num)], 4), (x + 21 - i * 8, y + 140))
+                screen.blit(self.malachite_image, (x + 35 - i * 8, y + 125))
+            x += step
 
 
 class Rocket(pygame.sprite.Sprite):
@@ -520,7 +580,7 @@ class Boss:
             Rocket(self.shoulders[1].rect.centerx + 12, self.shoulders[1].rect.y - 30, player.rect.x, player.rect.y)
 
     def grow_hit(self):
-        if all([i.groups() for i in self.left_arm]) or all([i.groups() for i in self.right_arm]):
+        if all([i.groups() for i in self.left_arm]) or all([i.groups() for i in self.right_arm]) and self.grouped:
             self.arms_hit_move_distance += self.arms_speed
             if self.arms_hit_move_distance < 0:
                 self.grouped = False
@@ -578,6 +638,7 @@ class BossPart(pygame.sprite.Sprite):
     def update(self):
         if self.hp <= 0:
             box_died_sound.play()
+            Enemy(self.rect.x, self.rect.y)
             for _ in range(20):
                 Particle((self.rect.x, self.rect.y), random.choice(range(-5, 6)), random.choice(range(-6, -1)))
             boss.grouped = False
@@ -612,7 +673,6 @@ class BossPart(pygame.sprite.Sprite):
                     boss.shoulders[0] = i
                 elif i.type == 'Г':
                     boss.shoulders[1] = i
-                    print(i)
         elif self.hp <= 1:
             self.image = enemy2_image
         elif self.hp <= 2:
@@ -699,12 +759,10 @@ class BossPart(pygame.sprite.Sprite):
                         self.collide(0, self.yvel, p)
         for b in bullets_group:
             if pygame.sprite.collide_rect(self, b):
-                # if self.hp == 0:
-                #     boss.grouped = False
                 create_particles((b.rect.x, b.rect.y), b.side)
                 b.kill()
                 if self.type not in 'нНт':
-                    self.hp -= 1
+                    self.hp -= b.damage
 
         for p in barriers_group:
             self.collide(0, self.yvel, p)
@@ -714,7 +772,6 @@ class BossPart(pygame.sprite.Sprite):
         if self.xvel == self.yvel == 0:
             self.grouped = True
         else:
-            print(self.type)
             self.grouped = False
 
     def collide(self, xvel, yvel, p):
@@ -763,7 +820,7 @@ class Chest(pygame.sprite.Sprite):
                 self.button = None
 
             if self.button and not self.opened:
-                if self.button.hower:
+                if self.button.hover:
                     self.button.image = open_button_hover
                     if self.button.pressed:
                         open_chest_sound.play()
@@ -782,7 +839,7 @@ class Chest(pygame.sprite.Sprite):
                 self.button = None
 
             if self.button:
-                if self.button.hower:
+                if self.button.hover:
                     self.button.image = take_button_hover
                 else:
                     self.button.image = take_button
@@ -799,8 +856,6 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y):
         super().__init__(enemies_group, all_sprites)
         self.side = 'right'
-        self.x = pos_x
-        self.y = pos_y
         self.start_ticks = pygame.time.get_ticks()
         self.hp = 3
         self.xvel = 0  # скорость перемещения. 0 - стоять на месте
@@ -814,7 +869,7 @@ class Enemy(pygame.sprite.Sprite):
     def move(self, x, y):
         self.x = x
         self.y = y
-        self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
+        self.rect = self.image.get_rect().move(x, y)
 
     def shoot(self):
         seconds = (pygame.time.get_ticks() - self.start_ticks) / 1000
@@ -898,12 +953,13 @@ class Enemy(pygame.sprite.Sprite):
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, sx, sy, side, sender):
+    def __init__(self, sx, sy, side, sender, damage=1):
         super().__init__(bullets_group, all_sprites)
         if sender == 'enemy':
             self.image = bullet_image
         else:
             self.image = melon_seed
+        self.damage = damage
         self.sender = sender
         self.killed = False
         self.side = side
@@ -931,12 +987,12 @@ class Bullet(pygame.sprite.Sprite):
             for e in enemies_group:
                 if pygame.sprite.collide_rect(self, e):
                     create_particles((self.rect.x, self.rect.y), self.side)
-                    e.hp -= 1
+                    e.hp -= self.damage
                     self.kill()
                     return
         elif self.sender == 'enemy':
             if pygame.sprite.collide_rect(self, player):
-                player.hp -= 1
+                player.hp -= self.damage
                 random.choice(hits).play()
                 self.kill()
         for t in barriers_group:
@@ -952,21 +1008,28 @@ class Player(pygame.sprite.Sprite):
         self.side_hit = None
         self.x = pos_x
         self.y = pos_y
+        self.move_speed = 6
         self.current_slot = 0
         self.hp = 10
         self.xvel = 0  # скорость перемещения. 0 - стоять на месте
         self.yvel = 0
-        self.weapons = {None: None, 'scrap': None, 'bellows': None}
+        self.weapons = {None: None, 'scrap': None, 'bellows': None, 'power': None, 'speed': None, 'heal': None}
         self.weapon = None
         self.onGround = True
+        self.damage = 1
         self.image = player_image
+        self.is_shopping = False
+        self.effects = {'power': False, 'speed': False}
 
         self.boltAnimRight = Animation(melon_right_anim, 0.2, -1, True, False, 2)
         self.boltAnimLeft = Animation(melon_right_anim, 0.2, -1, True, True, 2)
         self.sekiraAnimHitRight = Animation(sekira_hit_right_anim, 0.5, -1, False, False, 2)
         self.sekiraAnimHitLeft = Animation(sekira_hit_right_anim, 0.5, -1, False, True, 2)
+        self.numbers = [load_image(f'numbers/{i}.png') for i in range(10)]
 
         self.hp_bar = HpBar(pos_x, pos_y, self.hp)
+        self.speed_start_ticks = pygame.time.get_ticks()
+        self.power_start_ticks = pygame.time.get_ticks()
         self.start_ticks_shoot = pygame.time.get_ticks()
         self.start_ticks_step = pygame.time.get_ticks()
         self.move(pos_x, pos_y)
@@ -977,12 +1040,14 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
 
     def shoot(self):
+        if self.is_shopping:
+            return
         if not self.weapon:
             seconds = (pygame.time.get_ticks() - self.start_ticks_shoot) / 200
             if seconds > 2:
                 melon_shoot_sound.play()
                 self.start_ticks_shoot = pygame.time.get_ticks()
-                Bullet(self.rect.centerx, self.rect.top, self.side, 'player')
+                Bullet(self.rect.centerx, self.rect.top, self.side, 'player', self.damage)
         elif self.weapon == self.weapons['scrap']:
             seconds = (pygame.time.get_ticks() - self.start_ticks_shoot) / 200
             if seconds > 2:
@@ -990,12 +1055,53 @@ class Player(pygame.sprite.Sprite):
                 self.start_ticks_shoot = pygame.time.get_ticks()
         elif self.weapon == self.weapons['bellows']:
             seconds = (pygame.time.get_ticks() - self.start_ticks_shoot) / 200
-            if seconds > 4:
+            if seconds > 10:
                 self.weapon.hit()
                 self.yvel = -JUMP_POWER
                 self.start_ticks_shoot = pygame.time.get_ticks()
+        elif self.weapon == self.weapons['heal']:
+            if self.hp < 10:
+                self.weapons['heal'].amount -= 1
+                self.hp += 1
+        elif self.weapon == self.weapons['power']:
+            if not self.effects['power']:
+                self.effects['power'] = True
+                self.weapons['power'].amount -= 1
+                self.damage *= 2
+                if self.weapons['scrap']:
+                    self.weapons['scrap'].damage *= 2
+                self.power_start_ticks = pygame.time.get_ticks()
+        elif self.weapon == self.weapons['speed']:
+            if not self.effects['speed']:
+                self.effects['speed'] = True
+                self.weapons['speed'].amount -= 1
+                self.move_speed *= 2
+                self.speed_start_ticks = pygame.time.get_ticks()
 
     def update(self, left, right, up):
+        x, y = 20, 20
+        for k, v in self.effects.items():
+            if v and k == 'power':
+                seconds = (pygame.time.get_ticks() - self.power_start_ticks) // 1000
+                screen.blit(power_effect, (x, y))
+                for i, num in enumerate(str(20 - seconds)):
+                    screen.blit(resize(self.numbers[int(num)], 4), (x + 60 + i * 20, y + 10))
+                if seconds >= 20:
+                    self.effects['power'] = False
+                    self.damage /= 2
+                    if self.weapons['scrap']:
+                        self.weapons['scrap'].damage /= 2
+                y += 80
+            elif v and k == 'speed':
+                seconds = (pygame.time.get_ticks() - self.speed_start_ticks) // 1000
+                screen.blit(speed_effect, (x, y))
+                for i, num in enumerate(str(20 - seconds)):
+                    screen.blit(resize(self.numbers[int(num)], 4), (x + 60 + i * 20, y + 10))
+                if seconds >= 20:
+                    self.effects['speed'] = False
+                    self.move_speed /= 2
+        if self.is_shopping:
+            return
         self.weapon = self.weapons[inventory.slots[self.current_slot].name]
         if inventory.current_slot != self.current_slot:
             inventory.set_current_slot(self.current_slot)
@@ -1012,7 +1118,7 @@ class Player(pygame.sprite.Sprite):
                     if seconds >= 1:
                         random.choice(steps).play()
                         self.start_ticks_step = pygame.time.get_ticks()
-            self.xvel = -MOVE_SPEED  # Лево = x - n
+            self.xvel = -self.move_speed  # Лево = x - n
             self.side = 'left'
         elif right:
             self.image = self.boltAnimRight.get_frame()
@@ -1022,7 +1128,7 @@ class Player(pygame.sprite.Sprite):
                     if seconds >= 1:
                         random.choice(steps).play()
                         self.start_ticks_step = pygame.time.get_ticks()
-            self.xvel = MOVE_SPEED  # Право = x + n
+            self.xvel = self.move_speed  # Право = x + n
             self.side = 'right'
         else:
             self.xvel = 0
@@ -1090,13 +1196,14 @@ class Player(pygame.sprite.Sprite):
 
 
 class Weapon(pygame.sprite.Sprite):
-    def __init__(self, x, y, name):
+    def __init__(self, x, y, name, damage=1):
         super().__init__(structures_group, weapons_group, all_sprites)
         self.taked = False
         self.side = None
         self.button = None
         self.amplitude = 8
         self.freq = 0.002
+        self.damage = damage
         self.start_ticks = pygame.time.get_ticks()
         self.offset = 0
         self.is_hit = False
@@ -1168,12 +1275,12 @@ class Weapon(pygame.sprite.Sprite):
     def enemy_collision(self):
         for e in enemies_group:
             if pygame.sprite.collide_rect(self, e):
-                e.hp -= 1
+                e.hp -= self.damage
         if boss.triggered:
             for p in boss_group:
                 if p.type not in 'нНт':
                     if pygame.sprite.collide_rect(self, p):
-                        p.hp -= 1
+                        p.hp -= self.damage
 
     def player_collision(self):
         if pygame.sprite.collide_rect(self, player):
@@ -1184,7 +1291,7 @@ class Weapon(pygame.sprite.Sprite):
             self.button = None
 
         if self.button and not self.taked:
-            if self.button.hower:
+            if self.button.hover:
                 self.button.image = equip_button_hover
                 if self.button.pressed:
                     take_item_sound.play()
@@ -1232,12 +1339,16 @@ class Inventory:
     def draw_slots(self):
         x, y = 400, 500
         step = 40
-        for s in self.slots:
+        for n, s in enumerate(self.slots):
             if s.chosen:
                 screen.blit(self.hover_frame_image, (x, y))
             else:
                 screen.blit(self.frame_image, (x, y))
             if s.name:
+                if s.amount == 0:
+                    self.slots[n] = InventoryItem(None, None)
+                    self.slots[n].chosen = True
+                    continue
                 if s.taked:
                     x1, y1 = pygame.mouse.get_pos()
                     screen.blit(s.image, (x1, y1))
@@ -1254,11 +1365,11 @@ class Inventory:
 
 
 class InventoryItem:
-    def __init__(self, name, image):
+    def __init__(self, name, image, size=2):
         self.chosen = False
         self.taked = False
         if image:
-            self.image = resize(load_image(image, -1), 2)
+            self.image = resize(load_image(image, -1), size)
             self.name = name
         else:
             self.name = None
@@ -1388,6 +1499,9 @@ while running:
                 up = True
             elif event.key == pygame.K_SPACE:
                 player.shoot()
+            elif event.key == pygame.K_ESCAPE:
+                if player.is_shopping:
+                    player.is_shopping = False
         elif event.type == pygame.KEYUP:
             if event.key in [pygame.K_UP, pygame.K_w]:
                 up = False
@@ -1410,10 +1524,9 @@ while running:
         elif event.type == pygame.MOUSEMOTION:
             for button in buttons_group:
                 if button.is_pressed(event.pos):
-                    button.hower = True
+                    button.hover = True
                 else:
-                    button.hower = False
-    player.update(left, right, up)
+                    button.hover = False
 
     screen.fill(pygame.Color(0, 0, 0))
     camera.update(player)
@@ -1430,7 +1543,6 @@ while running:
     enemies_group.draw(screen)
     bullets_group.draw(screen)
     particle_group.draw(screen)
-    buttons_group.draw(screen)
     rockets_group.draw(screen)
     boss_group.draw(screen)
     structures_group.draw(screen)
@@ -1438,6 +1550,9 @@ while running:
     rockets_group.update()
     inventory.update()
     structures_group.update()
+    player.update(left, right, up)
+    buttons_group.draw(screen)
+
 
     pygame.display.flip()
 
