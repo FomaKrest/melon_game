@@ -1,9 +1,11 @@
 import math
 import sys
 import time
+import copy
 
 import pygame
 import random
+from GenerateMap import generate_map
 from Animate import Animation, load_image, resize, mirror
 
 pygame.init()
@@ -57,26 +59,37 @@ def load_level(filename):
 
 
 boss_parts = []
+player = None
 
 
 def generate_level(level):
-    global flower
+    global boss_parts
+    boss_parts = []
     new_player, x, y, enemies = None, None, None, []
     for y in range(len(level)):
         for x in range(len(level[y])):
-            if level[y][x] == '.':
+            if level[y][x] == ',':
+                Tile('empty', 'sky', x, y)
+            elif level[y][x] == '.':
                 Tile('empty', 'empty', x, y)
             elif level[y][x] == '#':
                 Tile('empty', 'wood', x, y)
             elif level[y][x] in 'w\/':
                 Tile('empty', 'empty', x, y)
                 Tile('barrier', level[y][x], x, y)
+            elif level[y][x] == 'f':
+                Tile('barrier', 'f', x, y)
+            elif level[y][x] == 'l':
+                Tile('barrier', 'cloud', x, y)
             elif level[y][x] in 'кКлЛсСбБнНпПгГтh':
                 Tile('empty', 'empty', x, y)
                 boss_parts.append((x, y, level[y][x]))
             elif level[y][x] == '@':
                 Tile('empty', 'empty', x, y)
-                new_player = Player(x, y)
+                if not player:
+                    new_player = Player(x, y)
+                else:
+                    new_player = None
             elif level[y][x] == 'e':
                 Enemy(tile_width * x, tile_height * y)
                 Tile('empty', 'empty', x, y)
@@ -84,7 +97,7 @@ def generate_level(level):
                 Tile('empty', level[y][x], x, y)
             elif level[y][x] == 's':
                 Tile('empty', 'empty', x, y)
-                Weapon(x, y, 'scrap')
+                Weapon(x, y, 'scrap', None, 1.5)
             elif level[y][x] == 'c':
                 Tile('empty', 'empty', x, y)
                 Chest(x, y)
@@ -94,6 +107,11 @@ def generate_level(level):
             elif level[y][x] == 'b':
                 Tile('empty', 'empty', x, y)
                 Weapon(x, y, 'bellows')
+            if level[y][x] in 'bmcse@':
+                if level[y][x + 1] == ',' or level[y][x - 1] == ',':
+                    Tile('empty', 'sky', x, y)
+                else:
+                    Tile('empty', 'empty', x, y)
 
     return new_player, x, y, enemies
 
@@ -119,7 +137,10 @@ def start_screen():
 
 
 tile_images = {
+    'cloud': resize(load_image('tiles/cloud.png', -1), 2),
+    'sky': resize(load_image('tiles/sky.png', -1), 2),
     'wood': resize(load_image('ship_tiles/wood.png'), 2),
+    'f': resize(load_image('ship_tiles/wood.png'), 2),
     'empty': resize(load_image('ship_tiles/fon.png'), 2),
     'w': resize(load_image('ship_tiles/plate.png'), 2),
     '\\': resize(load_image('ship_tiles/boat_left.png'), 2),
@@ -139,6 +160,7 @@ melon_shoot_anim = [f'melon/shoot/{i}.png' for i in range(1, 7)]
 open_chest_anim = [f'chest/{i}.png' for i in range(1, 4)]
 krenk_anim = [f'enemy/krenk{i}.png' for i in range(1, 4)]
 scrap_hit_anim = [f'weapon/scrap_hit/{i}.png' for i in range(1, 4)]
+saber_hit_anim = [f'weapon/saber_hit/{i}.png' for i in range(1, 4)]
 bellows_anim = [f'weapon/bellows/{i}.png' for i in range(1, 4)]
 explosion_anim = [f'explosion/{i}.png' for i in range(1, 9)]
 
@@ -149,6 +171,7 @@ rocket_target_image = resize(load_image('rocket_target.png', -1), 2)
 rocket_image = resize(load_image('rocket.png', -1), 2)
 bellows_image = resize(load_image('weapon/bellows.png', -1), 2)
 scrap_image = resize(load_image('weapon/scrap.png', -1), 2)
+saber_image = resize(load_image('weapon/saber.png', -1), 2)
 leg_image = resize(load_image('enemy/leg.png', -1), 2)
 box_image = resize(load_image('enemy/box.png', -1), 2)
 iron_box_image = resize(load_image('enemy/iron_box.png', -1), 2)
@@ -163,6 +186,9 @@ equip_button = resize(load_image('buttons/equip.png', -1), 2)
 equip_button_hover = resize(load_image('buttons/equip_hover.png', -1), 2)
 open_button = resize(load_image('buttons/open.png', -1), 2)
 open_button_hover = resize(load_image('buttons/open_hover.png', -1), 2)
+level_image = resize(load_image('buttons/level.png', -1), 4)
+next_level_button = resize(load_image('buttons/next_level.png', -1), 4)
+next_level_button_hover = resize(load_image('buttons/next_level_hover.png', -1), 4)
 full_chest = resize(load_image('chest/3.png', -1), 2)
 empty_chest = resize(load_image('chest/2.png', -1), 2)
 chest_image = resize(load_image('chest/closed.png', -1), 2)
@@ -288,13 +314,11 @@ class Tile(pygame.sprite.Sprite):
 
 
 class Particle(pygame.sprite.Sprite):
-    # сгенерируем частицы разного размера
-    fire = [load_image("wood_particle.png")]
-    for scale in (5, 1, 3):
-        fire.append(pygame.transform.scale(fire[0], (scale, scale)))
-
-    def __init__(self, pos, dx, dy):
+    def __init__(self, pos, dx, dy, img="wood_particle.png"):
         super().__init__(all_sprites, particle_group)
+        self.fire = [load_image(img)]
+        for scale in (5, 1, 3):
+            self.fire.append(pygame.transform.scale(self.fire[0], (scale, scale)))
         self.image = random.choice(self.fire)
         self.rect = self.image.get_rect()
 
@@ -316,17 +340,6 @@ class Particle(pygame.sprite.Sprite):
         # убиваем, если частица ушла за экран
         if self.rect.y > 850:
             self.kill()
-
-
-boss_parts_dependencies = {'к': ('л', 'tc', 'bc', (-4, 0)), 'л': ('б', 'tc', 'bc', (-4, 0)),
-                           'б': ('п', 'tc', 'bc', (-4, 0)), 'п': ('г', 'cr', 'cl', (0, 0)),
-                           'К': ('Л', 'tc', 'bc', (4, 0)), 'Л': ('Б', 'tc', 'bc', (4, 0)),
-                           'Б': ('П', 'tc', 'bc', (4, 0)), 'П': ('Г', 'cl', 'cr', (0, 0)),
-                           'Г': ('т', 'bc', 'tr', (0, 0)), 'н': ('с', 'bc', 'tc', (-1, 0)),
-                           'г': ('т', 'bc', 'tl', (0, 0)), 'Н': ('С', 'bc', 'tc', (1, 0)),
-                           'т': ('Н', 'bc', 'tl', (0, 0)), 'h': ('г', 'bc', 'tr', (0, 0))}
-reversed_tree = {'л': 'к', 'б': 'л', 'п': 'б', 'г': 'п', 'Л': 'К', 'Б': 'Л',
-                 'П': 'Б', 'Г': 'П', 'т': 'гГ', 'с': 'н', 'С': 'Н', 'Н': 'т'}
 
 
 class Shop(pygame.sprite.Sprite):
@@ -417,6 +430,16 @@ class Shop(pygame.sprite.Sprite):
             x += step
 
 
+class Target(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__(all_sprites, rockets_group)
+        self.image = rocket_target_image
+        self.rect = self.image.get_rect().move(x, y)
+
+    def update(self):
+        pass
+
+
 class Rocket(pygame.sprite.Sprite):
     def __init__(self, x, y, end_x, end_y):
         super().__init__(all_sprites, rockets_group)
@@ -430,35 +453,43 @@ class Rocket(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(x, y)
         self.explosionAnim = Animation(explosion_anim, 0.1, -1, False, False, 2)
         self.is_explosion = False
+        self.target = Target(end_x, end_y)
         rocket_start_sound.play()
 
     def update(self):
         if not self.is_explosion:
-            screen.blit(rocket_target_image, (self.end_x, self.end_y))
             if self.side == 'up':
                 self.rect.y -= 4
                 seconds = (pygame.time.get_ticks() - self.start_ticks) / 1000
-                if seconds > 2:
+                if seconds > 3:
                     self.side = 'down'
-                    self.rect.x = self.end_x
+                    self.rect.x = self.target.rect.x
+                    self.rect.y = player.rect.y - 400
                     self.image = mirror(rocket_image, True)
             else:
                 self.rect.y += 15
                 if pygame.sprite.collide_rect(self, player):
                     player.hp -= 1
                     self.is_explosion = True
+                    self.target.kill()
                     random.choice(explosion_sounds).play()
                     return
-                for b in barriers_group:
-                    if pygame.sprite.collide_rect(self, b):
-                        self.is_explosion = True
-                        random.choice(explosion_sounds).play()
-                        return
+                # for b in barriers_group:
+                #     if pygame.sprite.collide_rect(self, b):
+                #         self.is_explosion = True
+                #         random.choice(explosion_sounds).play()
+                #         return
+                if self.rect.y > self.target.rect.y:
+                    self.is_explosion = True
+                    self.target.kill()
+                    random.choice(explosion_sounds).play()
+                    return
                 for p in boss_group:
                     if pygame.sprite.collide_rect(self, p):
                         if p.type not in 'нНт':
                             p.hp -= 1
                             self.is_explosion = True
+                            self.target.kill()
                             random.choice(explosion_sounds).play()
                             return
         else:
@@ -467,6 +498,17 @@ class Rocket(pygame.sprite.Sprite):
                 screen.blit(frame, (self.rect.x - 20, self.rect.y))
             else:
                 self.kill()
+
+
+boss_parts_dependencies = {'к': ('л', 'tc', 'bc', (-4, 0)), 'л': ('б', 'tc', 'bc', (-4, 0)),
+                               'б': ('п', 'tc', 'bc', (-4, 0)), 'п': ('г', 'cr', 'cl', (0, 0)),
+                               'К': ('Л', 'tc', 'bc', (4, 0)), 'Л': ('Б', 'tc', 'bc', (4, 0)),
+                               'Б': ('П', 'tc', 'bc', (4, 0)), 'П': ('Г', 'cl', 'cr', (0, 0)),
+                               'Г': ('т', 'bc', 'tr', (0, 0)), 'н': ('с', 'bc', 'tc', (-1, 0)),
+                               'г': ('т', 'bc', 'tl', (0, 0)), 'Н': ('С', 'bc', 'tc', (1, 0)),
+                               'т': ('Н', 'bc', 'tl', (0, 0)), 'h': ('г', 'bc', 'tr', (0, 0))}
+reversed_tree = {'л': 'к', 'б': 'л', 'п': 'б', 'г': 'п', 'Л': 'К', 'Б': 'Л',
+                 'П': 'Б', 'Г': 'П', 'т': 'гГ', 'с': 'н', 'С': 'Н', 'Н': 'т'}
 
 
 class Boss:
@@ -502,6 +544,13 @@ class Boss:
             else:
                 BossPart(i[0], i[1], i[2])
 
+            for i in boss_group:
+                try:
+                    i.points = boss_parts_dependencies[i.type]
+                    i.find_parent(boss_parts_dependencies[i.type][0])
+                except KeyError:
+                    i.points = None
+
     def trigger(self):
         self.triggered = True
         boss_start_sound.play()
@@ -519,11 +568,19 @@ class Boss:
             if not self.walking:
                 self.grow_hit()
             seconds = (pygame.time.get_ticks() - self.start_hit_ticks) / 1000
-            if seconds > 2:
+            if seconds > 3.5:
                 self.rockets()
                 self.start_hit_ticks = pygame.time.get_ticks()
         for i in boss_group:
             i.update()
+        if len(boss_group) == 3:
+            for _ in range(40):
+                Particle((self.head.rect.x, self.head.rect.y), random.choice(range(-5, 6)),
+                         random.choice(range(-6, -1)), 'iron_particle.png')
+            boss_going_sound.stop()
+            boss_group.empty()
+            global boss
+            boss = None
 
     def legs_move(self):
         self.current_leg_move_distance += self.legs_speed
@@ -574,10 +631,17 @@ class Boss:
                 i.rect.x -= self.speed
 
     def rockets(self):
+        px = player.rect.x
+        py = player.rect.y
+        rockets = []
         if self.shoulders[0].groups():
-            Rocket(self.shoulders[0].rect.x, self.shoulders[0].rect.y - 30, player.rect.x, player.rect.y)
+            rockets.append([self.shoulders[0].rect.x, self.shoulders[0].rect.y - 30, px, py])
+            #Rocket(self.shoulders[0].rect.x, self.shoulders[0].rect.y - 30, px, py)
         if self.shoulders[1].groups():
-            Rocket(self.shoulders[1].rect.centerx + 12, self.shoulders[1].rect.y - 30, player.rect.x, player.rect.y)
+            rockets.append([self.shoulders[1].rect.centerx + 12, self.shoulders[1].rect.y - 30, px, py])
+            #Rocket(self.shoulders[1].rect.centerx + 12, self.shoulders[1].rect.y - 30, px, py)
+        if rockets:
+            Rocket(*random.choice(rockets))
 
     def grow_hit(self):
         if all([i.groups() for i in self.left_arm]) or all([i.groups() for i in self.right_arm]) and self.grouped:
@@ -636,7 +700,7 @@ class BossPart(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
 
     def update(self):
-        if self.hp <= 0:
+        if self.hp <= 0 or self.rect.y > boss.left_leg.rect.y + 120:
             box_died_sound.play()
             Enemy(self.rect.x, self.rect.y)
             for _ in range(20):
@@ -848,7 +912,7 @@ class Chest(pygame.sprite.Sprite):
                     self.button.kill()
                     self.image = empty_chest
                     self.empty = True
-                    inventory.malachite_amount += random.choice([3, 4, 5])
+                    inventory.malachite_amount += random.choice([1, 2])
                     self.update = lambda: None
 
 
@@ -862,6 +926,8 @@ class Enemy(pygame.sprite.Sprite):
         self.yvel = 0
         self.speed = 3
         self.left, self.right, self.up = False, False, False
+        self.weapon = Weapon(0, 0, 'saber', self)
+        self.weapon.update = self.weapon.taken_update
         self.onGround = True
         self.image = enemy_image
         self.move(pos_x, pos_y)
@@ -875,9 +941,10 @@ class Enemy(pygame.sprite.Sprite):
         seconds = (pygame.time.get_ticks() - self.start_ticks) / 1000
         if seconds > 2:
             self.start_ticks = pygame.time.get_ticks()
-            Bullet(self.rect.centerx, self.rect.top, self.side, 'enemy')
+            self.weapon.hit()
 
     def update(self):
+        self.weapon.side = self.side
         if self.hp <= 2:
             self.image = enemy1_image
         if self.hp <= 1:
@@ -886,12 +953,21 @@ class Enemy(pygame.sprite.Sprite):
             box_died_sound.play()
             for _ in range(20):
                 Particle((self.rect.x, self.rect.y), random.choice(range(-5, 6)), random.choice(range(-6, -1)))
+            self.weapon.kill()
             self.kill()
 
-        if self.rect.x + 1000 > player.rect.x > self.rect.x + 100:
+        if self.rect.x + 1000 > player.rect.x > self.rect.x + 60:
             self.right = True
-        elif self.rect.x - 1000 < player.rect.x < self.rect.x - 100:
+        elif self.rect.x - 1000 < player.rect.x < self.rect.x - 50:
             self.left = True
+        if self.rect.x > player.rect.x:
+            if self.side == 'right':
+                self.image = mirror(self.image)
+                self.side = 'left'
+        elif self.rect.x < player.rect.x:
+            if self.side == 'left':
+                self.image = mirror(self.image)
+                self.side = 'right'
         if player.rect.y + 40 >= self.rect.y >= player.rect.y - 40:
             self.shoot()
         if self.up:
@@ -1011,6 +1087,7 @@ class Player(pygame.sprite.Sprite):
         self.move_speed = 6
         self.current_slot = 0
         self.hp = 10
+        self.on_mast = True
         self.xvel = 0  # скорость перемещения. 0 - стоять на месте
         self.yvel = 0
         self.weapons = {None: None, 'scrap': None, 'bellows': None, 'power': None, 'speed': None, 'heal': None}
@@ -1027,12 +1104,12 @@ class Player(pygame.sprite.Sprite):
         self.sekiraAnimHitLeft = Animation(sekira_hit_right_anim, 0.5, -1, False, True, 2)
         self.numbers = [load_image(f'numbers/{i}.png') for i in range(10)]
 
-        self.hp_bar = HpBar(pos_x, pos_y, self.hp)
         self.speed_start_ticks = pygame.time.get_ticks()
         self.power_start_ticks = pygame.time.get_ticks()
         self.start_ticks_shoot = pygame.time.get_ticks()
         self.start_ticks_step = pygame.time.get_ticks()
         self.move(pos_x, pos_y)
+        self.hp_bar = HpBar(self.rect.x, self.rect.y, self.hp)
 
     def move(self, x, y):
         self.x = x
@@ -1055,7 +1132,7 @@ class Player(pygame.sprite.Sprite):
                 self.start_ticks_shoot = pygame.time.get_ticks()
         elif self.weapon == self.weapons['bellows']:
             seconds = (pygame.time.get_ticks() - self.start_ticks_shoot) / 200
-            if seconds > 10:
+            if seconds > 6.5:
                 self.weapon.hit()
                 self.yvel = -JUMP_POWER
                 self.start_ticks_shoot = pygame.time.get_ticks()
@@ -1196,11 +1273,12 @@ class Player(pygame.sprite.Sprite):
 
 
 class Weapon(pygame.sprite.Sprite):
-    def __init__(self, x, y, name, damage=1):
+    def __init__(self, x, y, name, owner=None, damage=1.0):
         super().__init__(structures_group, weapons_group, all_sprites)
-        self.taked = False
+        self.taken = False
         self.side = None
         self.button = None
+        self.owner = owner
         self.amplitude = 8
         self.freq = 0.002
         self.damage = damage
@@ -1214,12 +1292,19 @@ class Weapon(pygame.sprite.Sprite):
             self.hitLeftAnim = Animation(scrap_hit_anim, 0.3, -1, False, True, 2)
             self.x_right = 30
             self.x_left = -30
+        elif name == 'saber':
+            self.image = saber_image
+            self.hitRightAnim = Animation(saber_hit_anim, 0.3, -1, False, False, 2)
+            self.hitLeftAnim = Animation(saber_hit_anim, 0.3, -1, False, True, 2)
+            self.x_right = 30
+            self.x_left = -30
         elif name == 'bellows':
             self.image = load_image('weapon/bellows.png', -1)
             self.hitRightAnim = Animation(bellows_anim, 0.3, -1, False, False)
             self.hitLeftAnim = Animation(bellows_anim, 0.3, -1, False, True)
             self.x_right = 30
             self.x_left = -20
+
         self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
         self.img = self.image
 
@@ -1228,7 +1313,9 @@ class Weapon(pygame.sprite.Sprite):
         self.is_hit = True
 
     def update(self):
-        if not self.taked:
+        if not self.owner:
+            self.owner = player
+        if not self.taken:
             # harmonic motion
             time = (pygame.time.get_ticks() - self.start_ticks)
             offset = self.amplitude * math.sin(time * self.freq) // 1
@@ -1239,23 +1326,23 @@ class Weapon(pygame.sprite.Sprite):
             self.player_collision()
         else:
             inventory.add_item(self.name, 1)
-            player.weapons[self.name] = self
-            self.update = self.taked_update
+            self.owner.weapons[self.name] = self
+            self.update = self.taken_update
 
-    def taked_update(self):
-        if player.weapon != self:
+    def taken_update(self):
+        if self.owner.weapon != self:
             if self in structures_group:
                 structures_group.remove(self)
         else:
             if self not in structures_group:
                 structures_group.add(self)
         if self.side == 'right':
-            self.rect.x = player.rect.x + self.x_right
-            self.rect.y = player.rect.y
+            self.rect.x = self.owner.rect.x + self.x_right
+            self.rect.y = self.owner.rect.y
             self.image = self.img
         else:
-            self.rect.x = player.rect.x + self.x_left
-            self.rect.y = player.rect.y
+            self.rect.x = self.owner.rect.x + self.x_left
+            self.rect.y = self.owner.rect.y
             self.image = mirror(self.img)
         if self.is_hit:
             if self.side == 'right':
@@ -1273,30 +1360,35 @@ class Weapon(pygame.sprite.Sprite):
                 self.hitRightAnim.restart()
 
     def enemy_collision(self):
-        for e in enemies_group:
-            if pygame.sprite.collide_rect(self, e):
-                e.hp -= self.damage
-        if boss.triggered:
-            for p in boss_group:
-                if p.type not in 'нНт':
-                    if pygame.sprite.collide_rect(self, p):
-                        p.hp -= self.damage
+        if self.name == 'scrap':
+            for e in enemies_group:
+                if pygame.sprite.collide_rect(self, e):
+                    e.hp -= self.damage
+            if boss:
+                if boss.triggered:
+                    for p in boss_group:
+                        if p.type not in 'нНт':
+                            if pygame.sprite.collide_rect(self, p):
+                                p.hp -= self.damage
+        elif self.name == 'saber':
+            if pygame.sprite.collide_rect(self, player):
+                player.hp -= self.damage
 
     def player_collision(self):
         if pygame.sprite.collide_rect(self, player):
-            if not self.taked and not self.button:
+            if not self.taken and not self.button:
                 self.button = Button(self.rect.x - 10, self.rect.y - 20, equip_button)
         elif self.button:
             self.button.kill()
             self.button = None
 
-        if self.button and not self.taked:
+        if self.button and not self.taken:
             if self.button.hover:
                 self.button.image = equip_button_hover
                 if self.button.pressed:
                     take_item_sound.play()
                     self.button.kill()
-                    self.taked = True
+                    self.taken = True
             else:
                 self.button.image = equip_button
 
@@ -1349,7 +1441,7 @@ class Inventory:
                     self.slots[n] = InventoryItem(None, None)
                     self.slots[n].chosen = True
                     continue
-                if s.taked:
+                if s.taken:
                     x1, y1 = pygame.mouse.get_pos()
                     screen.blit(s.image, (x1, y1))
                     for i, num in enumerate(str(s.amount)[::-1]):
@@ -1367,7 +1459,7 @@ class Inventory:
 class InventoryItem:
     def __init__(self, name, image, size=2):
         self.chosen = False
-        self.taked = False
+        self.taken = False
         if image:
             self.image = resize(load_image(image, -1), size)
             self.name = name
@@ -1388,11 +1480,12 @@ class HpBar:
         self.x = pos_x
         self.y = pos_y + 100
         self.hearts = []
-        self.move(pos_x, pos_y)
+        self.move(422, 280)
+        print(pos_x, pos_y)
 
     def move(self, x, y):
         for i in range((self.hp + 1) // 2):
-            self.hearts.append(Heart(x, y))
+            self.hearts.append(Heart(x + (i * 12), y))
 
     def update(self, hp, x, y):
         self.x = x
@@ -1417,22 +1510,53 @@ class HpBar:
 
 class Heart(pygame.sprite.Sprite):
     def __init__(self, x_pos, y_pos):
-        super().__init__(all_sprites, hearts_group)
+        super().__init__(hearts_group)
         self.image = heart_image
         self.move(x_pos, y_pos)
 
     def move(self, x, y):
-        self.rect = self.image.get_rect().move(tile_width * x, tile_height * y)
+        self.rect = self.image.get_rect().move(x, y)
 
     def update(self, type, x, y):
-        self.rect.x = x
-        self.rect.y = y
+        #self.rect.x = x
+        #self.rect.y = y
         if type == 'heart':
             self.image = heart_image
         elif type == 'half_heart':
             self.image = half_heart_image
         elif type == 'not_heart':
             self.image = not_heart_image
+
+
+class LevelBar(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(inventory_group)
+        self.image = level_image
+        self.rect = self.image.get_rect().move(400, 20)
+        self.is_next_level = False
+        self.button = None
+        self.numbers = [resize(load_image(f'numbers/{i}.png'), 4) for i in range(10)]
+
+    def update(self, num):
+        global current_level, next_level
+        for i, num in enumerate(str(num)[::-1]):
+            screen.blit(self.numbers[int(num)], (561 - i * 25, 35))
+        if self.button:
+            if self.button.hover:
+                self.button.image = next_level_button_hover
+                if self.button.pressed:
+                    take_item_sound.play()
+                    self.button.kill()
+                    self.button = None
+                    current_level += 1
+                    next_level = True
+                    self.is_next_level = False
+            else:
+                self.button.image = next_level_button
+        elif self.is_next_level and not self.button:
+            self.button = Button(400, 90, next_level_button)
+            all_sprites.remove(self.button)
+            self.is_next_level = False
 
 
 class Barrier(pygame.sprite.Sprite):
@@ -1442,12 +1566,11 @@ class Barrier(pygame.sprite.Sprite):
         self.rect = pygame.Rect(cords1[0], cords1[1], cords2[0] - cords1[0] + tile_width, tile_height)
 
 
-def make_barriers():
+def make_barriers(l):
     barriers = []
-    l = load_level('ship_level.txt')
     for i in range(len(l)):
         for j in range(len(l[i])):
-            if l[i][j] in 'w\\/':
+            if l[i][j] in 'w\\/lf':
                 barriers.append((j * tile_width, i * tile_height))
     barriers.sort(key=lambda a: (a[1], a[0]))
 
@@ -1470,19 +1593,15 @@ def make_barriers():
 
 start_screen()
 level_map = load_level('ship_level.txt')
+make_barriers(level_map)
 player, level_x, level_y, enemies = generate_level(level_map)
+current_level = 0
 bullets = []
-boss = Boss(boss_parts)
+next_level = False
 inventory = Inventory()
 inventory.set_current_slot(0)
-for i in boss_group:
-    try:
-        i.points = boss_parts_dependencies[i.type]
-        i.find_parent(boss_parts_dependencies[i.type][0])
-    except KeyError:
-        i.points = None
-
-make_barriers()
+level_bar = LevelBar()
+boss = None
 camera = Camera()
 left, right, up = 0, 0, 0
 running = True
@@ -1532,7 +1651,35 @@ while running:
     camera.update(player)
     for sprite in all_sprites:
         camera.apply(sprite)
-    boss.update()
+    if boss:
+        boss.update()
+    if next_level:
+        tiles_group.empty()
+        barriers_group.empty()
+        boss_group.empty()
+        boss = None
+        boss_parts = []
+        structures_group.empty()
+        buttons_group.empty()
+        bullets_group.empty()
+        enemies_group.empty()
+        for i in weapons_group:
+            if not i.taken:
+                i.kill()
+        all_sprites.empty()
+        all_sprites.add(player)
+        if current_level % 5 == 0:
+            level_map = generate_map(current_level, True)
+        else:
+            level_map = generate_map(current_level)
+        make_barriers(level_map)
+        _, level_x, level_y, enemies = generate_level(level_map)
+        if current_level % 5 == 0:
+            boss = Boss(boss_parts)
+        next_level = False
+        print(len(boss_group))
+    if not enemies_group and not boss:
+        level_bar.is_next_level = True
     bullets_group.update()
     enemies_group.update()
     particle_group.update()
@@ -1552,7 +1699,8 @@ while running:
     structures_group.update()
     player.update(left, right, up)
     buttons_group.draw(screen)
-
+    inventory_group.draw(screen)
+    level_bar.update(current_level)
 
     pygame.display.flip()
 
